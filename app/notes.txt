@@ -1,0 +1,13 @@
+Виртульное окружние + Flask + request + requests
+
+1.Создать бота в BotFather /newbot
+1.1.Указать название бота
+1.2.Имя username (Должно присутствовать bot)
+
+2.Создуть тунельное соединение с помощью ngrock
+2.1.Скачать с сайта ngrock
+2.2.Распаковать в домашней папке
+2.3.Выполнить в консоли ~/ngrok http 5000
+
+3. Повесить webhook с помощью ngrok
+# https://api.telegram.org/bot<token>/setWebhook?url=https://b7ce8b05.ngrok.io
