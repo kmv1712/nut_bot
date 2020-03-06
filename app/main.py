@@ -1,18 +1,22 @@
+import requests
+import random
+import json
+import os
+
 from flask import Flask
 from flask import request
 from flask import jsonify
-import requests
-import random
+
 # from flask_sslify import SSLify
+
 
 app = Flask(__name__)
 # sslify = SSLify(app)
 
-TOKEN = ''
+TOKEN=''
 URL = 'https://api.telegram.org/bot{0}/'.format(TOKEN)
-# https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://e6864a52.ngrok.io
 
-TEXT_INSTRUCTIONS ='''
+TEXT_INSTRUCTIONS = '''
 Здравствуйте, это телеграмм бот \n
 для заказа сухофруктов.\n
 \n
@@ -21,7 +25,7 @@ TEXT_INSTRUCTIONS ='''
 1) Введите команду /list\n
 
 2) Выбираете номер сухофрукта\n
-из списка.\n
+   из списка.\n
  \n
 Например: Курага с номером 26\n
 и умножаете на 200 грамм:\n
@@ -30,15 +34,61 @@ TEXT_INSTRUCTIONS ='''
 Чернослив (36) 100 грамм\n
 то пишите:\n
 + 36*100\n
-В итоге вы отправите сообщение:\n
-1*200+2*100\n
-3) После вы получите сообщение, что\n 
-Вы заказали:\n
-Курага 200 гр\n
-Чернослив 100 гр\n 
+3) В конце через пробел укажите\n
+   место куда доставить товар.\n
+   (Доставка только по г.Екатеринбург)\n
+  \n 
+4) В итоге вы отправите сообщение:\n
+1*200+2*100 Ленина 32, кв.40 \n
+\n
+или 
+\n
+1*200+2*100 Ленина 32 подъезд №1\n
+\n
+5) После вы получите сообщение\n 
+\n
+    Вы заказали:\n
+    Курага 200 гр Цена: 100 руб.\n
+    Чернослив 100 гр Цена: 100 руб.\n 
+    Общая сумма заказа: 200 руб.\n
+    \n
+    Будет выполнена доставка по адресу:\n
+    Ленина 32 подъезд №1\n
+    \n
+    Оформить заказ?Да/Нет\n
+    \n
+6) При выборе Да получите сообщение\n
+\n
+    Как вы хотите оплатить товар?\n
+    (Выберите соответствующую цифру)\n
+    1.Оплатить онлайн\n
+    2.Наличными курьеру\n
+    3.Банковсой картой курьеру\n
+    \n
+7) При выборе 2 или 3 получите\n 
+сообщение\n
+\n
+ Ваш заказ принят. № 321\n
+ Спасибо за заказ!\n
 '''
 
-NOMENCLTURE_WITH_PRICE ='''
+TEXT_PAYMENT_METHOD = '''
+Как вы хотите оплатить товар?\n
+(Выберите соответствующую цифру)\n
+1 Оплатить онлайн\n
+2 Наличными курьеру\n
+3 Банковсой картой курьеру\n
+\n'''
+
+TOTAL_PRICE_ADDRESS = '''
+Общая сумма заказа: {0} руб.\n
+\n
+Будет выполнена доставка по адресу:\n
+{1}\n
+\n
+Оформить заказ?Да/Нет'''
+
+NOMENCLTURE_WITH_PRICE = '''
 Цены за в рублях за 100 грамм🌰!\n
 1) Орех кедровый(очищенный) \n
 2) Орех макадам 7,8\n
@@ -142,6 +192,8 @@ NUMBER_AND_NAME_NOMENCLATURE = {
 }
 
 NUMBER_AND_PRICE_NOMENCLATURE = {str(item): random.randint(1, 20) for item in range(1, 70)}
+
+
 # {
 # '1': 14,
 # '2': 7.8,
@@ -192,19 +244,32 @@ NUMBER_AND_PRICE_NOMENCLATURE = {str(item): random.randint(1, 20) for item in ra
 # '47': 'Финики каспиран 260',
 # '48': 'Финики Тунис 250р'
 # }
-#
-#
-# def write_json(data, filename='answer.json'):
-#     with open(filename, 'w') as f:
-#         json.dump(data, f, indent=2, ensure_ascii=False)
-#
-#
-# def get_updates():
-#     url = '{0}{1}'.format(URL, 'getUpdates')
-#     r = requests.get(url)
-#     # write_json(r.json())
-#     return r.json()
-#
+
+
+def write_json(chat_id, dict_info_about_user, filename='orders.json'):
+    list_orders = []
+    dict_orders = {}
+
+    if os.path.exists('orders.json'):
+        with open('orders.json', 'r') as f:
+            dict_orders = json.loads(f.read())
+
+    i = 0
+    for i in range(1, 1000):
+        if i in [item.get('number_order') for item in dict_orders.get(str(chat_id)) or []]:
+            continue
+        dict_info_about_user['number_order'] = i
+        break
+
+    list_orders.append(dict_info_about_user)
+    dict_orders[str(chat_id)] = list_orders
+
+    with open(filename, 'w') as f:
+        f.write(json.dumps(dict_orders))
+
+    return i
+
+
 https_proxy = "https://136.243.47.220:3128"
 
 proxy_dict = {
@@ -212,60 +277,122 @@ proxy_dict = {
 }
 
 
-def send_message(chat_id, text='bla-bla-bla'):
+def send_message(chat_id, text=''):
     url = '{0}{1}'.format(URL, 'sendMessage')
     answer = {'chat_id': chat_id, 'text': text}
     r = requests.post(url, json=answer, proxies=proxy_dict)
     return r.json()
-#
-#
-# def parse_text(text):
-#     pattern = r'/\w+'
-#     crypto = re.search(pattern, text).group()
-#     return crypto[1:]
-#
-#
-# def get_price(crypto):
-#     url = 'https://api.coinmarketcap.com/v1/ticker/{}'.format(crypto)
-#     r = requests.get(url)
-#     if r.status_code == 200:
-#         r = r.json()
-#     else:
-#         r = [{'price_usd': 'Не верное название криптовалюты '}]
-#     price = r[-1]['price_usd']
-#     write_json(r, filename='price.json')
-#     return price
 
 
-def get_result_text(message):
+def get_result_text(dict_info_about_user):
     """Получить текст с названием товара, введеныx пользователем грамм, ценой с учетом выбранных грамм. Итоговую цену.
 
     Args:
-        message(str): Сообщение типа '1*100+32*200'.
+        dict_info_about_user(dict): Информация о пользователе, его заказе и адресе доставки.
 
     Returns:
         str
     """
-    result_list = []
+    list_result_text = []
+    for item in dict_info_about_user.get('ordered_nomenclatures') or []:
+        list_result_text.append('{0} {1} грамм Цена:{2} руб\n'.format(item.get('name_nomenclature'),
+                                                                      str(item.get('weight')),
+                                                                      str(item.get('price'))))
+
+    list_result_text.append(TOTAL_PRICE_ADDRESS.format(str(dict_info_about_user.get('total_price')),
+                                                       str(dict_info_about_user.get('address'))))
+    result = '\n'.join(list_result_text)
+    return result
+
+
+def get_dict_info_about_user(r):
+    dict_info_user = {
+        'first_name': r.get('message', {}).get('from', {}).get('first_name'),
+        'last_name': r.get('message', {}).get('from', {}).get('last_name'),
+        'id': r.get('message', {}).get('from', {}).get('id'),
+        'date': r.get('message', {}).get('date'),
+        'text': r.get('message', {}).get('text')
+    }
+    return dict_info_user
+
+
+def get_dict_info_about_user_with_order_total_price(dict_info_about_user):
+    address = ''
+    order = ''
+    message = (dict_info_about_user.get('text') or '')
+
+    # Получим адресс и текст с 1*100+2*300
+    for i, item in enumerate(message):
+        if item.isalpha():
+            order = message[0:i]
+            address = message[i:len(message)]
+            dict_info_about_user['address'] = address
+            break
+
+    order_without_spaces = message.replace(' ', '') if not order else order.replace(' ', '')
+
+    list_part_order = order_without_spaces.split('+')
+
+    ordered_nomenclatures = []
     total_price = 0
-
-    message = message.replace(' ', '')
-    list_part_message = message.split('+')
-
-    for part_message in list_part_message:
-        part_message = part_message.split('*')
-        number_nomenclature = part_message[0]
-        gramm = part_message[1]
+    for part_order in list_part_order or []:
+        part_order = part_order.split('*')
+        number_nomenclature = part_order[0]
+        gramm = part_order[1]
         gramm_int = int(gramm)
         price = gramm_int * NUMBER_AND_PRICE_NOMENCLATURE.get(number_nomenclature)
-        result_list.append('{0} {1} грамм Цена:{2} руб'.format(NUMBER_AND_NAME_NOMENCLATURE.get(number_nomenclature),
-                                                               gramm, str(price)))
+        info_about_ordered_nomenclature = {
+            'name_nomenclature': NUMBER_AND_NAME_NOMENCLATURE.get(number_nomenclature),
+            'weight': gramm,
+            'price': price
+        }
+        ordered_nomenclatures.append(info_about_ordered_nomenclature)
         total_price += price
 
-    result_list.append('Стоимость всего заказа: {0} руб.'.format(total_price))
-    result_list.append('Заказать? Да/Нет?')
-    result = '\n'.join(result_list)
-    return result
+    dict_info_about_user['ordered_nomenclatures'] = ordered_nomenclatures
+    dict_info_about_user['total_price'] = total_price
+
+    return dict_info_about_user
+
+
+def write_json_del(chat_id):
+    dict_orders = {}
+    if not os.path.exists('orders.json'):
+        return
+
+    with open('orders.json', 'r') as f:
+        dict_orders = json.loads(f.read())
+        list_orders = dict_orders.get(str(chat_id))
+        if not list_orders:
+            return
+        list_orders.pop()
+
+    with open('orders.json', 'w') as f:
+        f.write(json.dumps(dict_orders))
+
+
+def write_json_add_payment_method(chat_id, message):
+    dict_orders = {}
+    if not os.path.exists('orders.json'):
+        return
+
+    with open('orders.json', 'r') as f:
+        dict_orders = json.loads(f.read())
+        list_orders = dict_orders.get(str(chat_id))
+        if not list_orders:
+            return
+        message = message.replace(' ', '')
+        try:
+            message = int(message)
+        except (TypeError, ValueError):
+            message = 0
+        list_orders[-1]['payment_method'] = message
+        number_order = list_orders[-1].get('number_order')
+
+    with open('orders.json', 'w') as f:
+        f.write(json.dumps(dict_orders))
+
+    return number_order
 
 
 @app.route('/', methods=['POST', 'GET'])
@@ -280,8 +407,26 @@ def index():
         elif message == '/list':
             send_message(chat_id, text=NOMENCLTURE_WITH_PRICE)
         elif '*' in message:
-            result_text = get_result_text(message)
+            dict_info_about_user = get_dict_info_about_user(r)
+            dict_info_about_user = get_dict_info_about_user_with_order_total_price(dict_info_about_user)
+            write_json(chat_id, dict_info_about_user)
+            result_text = get_result_text(dict_info_about_user)
             send_message(chat_id, text=result_text)
+        elif 'Да' == (message or '').replace(' ', ''):
+            send_message(chat_id, text=TEXT_PAYMENT_METHOD)
+
+        elif 'Нет' == (message or '').replace(' ', ''):
+            write_json_del(chat_id)
+            send_message(chat_id, text='''Ваш заказ не принят''')
+        elif '1' == (message or '').replace(' ', ''):
+            send_message(chat_id, text='''Приносим извинения, данный функционал пока не работает''')
+        elif '2' == (message or '').replace(' ', ''):
+            number_order = write_json_add_payment_method(chat_id, message)
+            send_message(chat_id, text=('''Ваш заказ принят. № {0}\n Спасибо за заказ!\n''').format(number_order))
+        elif '3' == (message or '').replace(' ', ''):
+            number_order = write_json_add_payment_method(chat_id, message)
+            send_message(chat_id, text=('''Ваш заказ принят. № {0}\n Спасибо за заказ!\n''').format(number_order))
+
     return '<h1>Bot welcomes you</h1>'
 
 
